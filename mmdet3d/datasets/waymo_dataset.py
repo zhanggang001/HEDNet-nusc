@@ -55,6 +55,7 @@ class WaymoDataset(KittiDataset):
                  data_root,
                  ann_file,
                  split,
+                 num_views=5,
                  pts_prefix='velodyne',
                  pipeline=None,
                  classes=None,
@@ -77,6 +78,8 @@ class WaymoDataset(KittiDataset):
             test_mode=test_mode,
             pcd_limit_range=pcd_limit_range)
 
+        self.num_views = num_views
+        assert self.num_views <= 5
         # to load a subset, just set the load_interval in the dataset config
         self.data_infos = self.data_infos[::load_interval]
         if hasattr(self, 'flag'):
@@ -116,13 +119,42 @@ class WaymoDataset(KittiDataset):
         P0 = info['calib']['P0'].astype(np.float32)
         lidar2img = P0 @ rect @ Trv2c
 
+        # the Tr_velo_to_cam is computed for all images but not saved in .info for img1-4
+        # the size of img0-2: 1280x1920; img3-4: 886x1920
+        if self.modality['use_camera']:
+            image_paths = []
+            lidar2img_rts = []
+
+            # load calibration for all 5 images.
+            calib_path = img_filename.replace('image_0', 'calib').replace('.png', '.txt')
+            Tr_velo_to_cam_list = []
+            with open(calib_path, 'r') as f:
+                lines = f.readlines()
+            for line_num in range(6, 6 + self.num_views):
+                trans = np.array([float(info) for info in lines[line_num].split(' ')[1:13]]).reshape(3, 4)
+                trans = np.concatenate([trans, np.array([[0., 0., 0., 1.]])], axis=0).astype(np.float32)
+                Tr_velo_to_cam_list.append(trans)
+            assert np.allclose(Tr_velo_to_cam_list[0], info['calib']['Tr_velo_to_cam'].astype(np.float32))
+
+            for idx_img in range(self.num_views):
+                rect = info['calib']['R0_rect'].astype(np.float32)
+                # Trv2c = info['calib']['Tr_velo_to_cam'].astype(np.float32)
+                Trv2c = Tr_velo_to_cam_list[idx_img]
+                P0 = info['calib'][f'P{idx_img}'].astype(np.float32)
+                lidar2img = P0 @ rect @ Trv2c
+
+                image_paths.append(img_filename.replace('image_0', f'image_{idx_img}'))
+                lidar2img_rts.append(lidar2img)
+
         pts_filename = self._get_pts_filename(sample_idx)
         input_dict = dict(
             sample_idx=sample_idx,
             pts_filename=pts_filename,
             img_prefix=None,
-            img_info=dict(filename=img_filename),
-            lidar2img=lidar2img)
+        )
+        if self.modality['use_camera']:
+            input_dict['img_filename'] = image_paths
+            input_dict['lidar2img'] = lidar2img_rts
 
         if not self.test_mode:
             annos = self.get_ann_info(index)
