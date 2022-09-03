@@ -7,9 +7,10 @@ from .shape_aware_head import ShapeAwareHead
 from .ssd_3d_head import SSD3DHead
 from .vote_head import VoteHead
 from .transfusion_head import TransFusionHead
+from .simple_transfusion_head import SimpleTransFusionHead
 
 __all__ = [
     'Anchor3DHead', 'FreeAnchor3DHead', 'PartA2RPNHead', 'VoteHead',
     'SSD3DHead', 'BaseConvBboxHead', 'CenterHead', 'ShapeAwareHead',
-    'TransFusionHead'
+    'TransFusionHead', 'SimpleTransFusionHead'
 ]

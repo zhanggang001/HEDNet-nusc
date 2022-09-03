@@ -10,6 +10,7 @@ from .ssd3dnet import SSD3DNet
 from .votenet import VoteNet
 from .voxelnet import VoxelNet
 from .transfusion import TransFusionDetector
+from .simple_transfusion import SimpleTransFusionDetector, SimpleTransFusionDV
 
 __all__ = [
     'Base3DDetector',
@@ -25,4 +26,6 @@ __all__ = [
     'SSD3DNet',
     'ImVoteNet',
     'TransFusionDetector',
+    'SimpleTransFusionDetector',
+    'SimpleTransFusionDV',
 ]

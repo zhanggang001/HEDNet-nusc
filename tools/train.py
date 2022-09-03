@@ -217,6 +217,18 @@ def main():
             else:
                 param_nograd.append(name)
 
+    param_grad = []
+    param_nograd = []
+    for name, param in model.named_parameters():
+        if param.requires_grad is True:
+            param_grad.append(name)
+        else:
+            param_nograd.append(name)
+
+    logger.info(f"params need to update:")
+    for param_name in param_grad:
+        logger.info(param_name)
+
     logger.info(f'Model:\n{model}')
     datasets = [build_dataset(cfg.data.train)]
     if len(cfg.workflow) == 2:

@@ -10,6 +10,8 @@ from ..core import show_result
 from ..core.bbox import Box3DMode, Coord3DMode, LiDARInstance3DBoxes
 from .custom_3d import Custom3DDataset
 
+from .pipelines import ObjectSample
+
 
 @DATASETS.register_module()
 class NuScenesDataset(Custom3DDataset):
@@ -440,7 +442,7 @@ class NuScenesDataset(Custom3DDataset):
         else:
             tmp_dir = None
 
-        if not isinstance(results[0], dict):
+        if not ('pts_bbox' in results[0] or 'img_bbox' in results[0]):
             result_files = self._format_bbox(results, jsonfile_prefix)
         else:
             result_files = dict()
@@ -520,6 +522,11 @@ class NuScenesDataset(Custom3DDataset):
             pred_bboxes = Box3DMode.convert(pred_bboxes, Box3DMode.LIDAR,
                                             Box3DMode.DEPTH)
             show_result(points, gt_bboxes, pred_bboxes, out_dir, file_name)
+
+    def set_epoch_for_object_sample(self, epoch):
+        for trans in self.pipeline.transforms:
+            if isinstance(trans, ObjectSample):
+                trans.current_epoch = epoch
 
 
 def output_to_nusc_box(detection):

@@ -25,12 +25,13 @@ train_pipeline = [
         type='LoadPointsFromMultiSweeps',
         sweeps_num=10,
         use_dim=[0, 1, 2, 3, 4],
+        remove_close=True,
     ),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(
         type='ObjectSample',
         db_sampler=dict(
-            data_root=None,
+            data_root=data_root,
             info_path=data_root + 'nuscenes_dbinfos_train.pkl',
             rate=1.0,
             prepare=dict(
@@ -63,7 +64,8 @@ train_pipeline = [
                 coord_type='LIDAR',
                 load_dim=5,
                 use_dim=[0, 1, 2, 3, 4],
-            ))),
+            )),
+            max_abled_epoch=15),
     dict(
         type='GlobalRotScaleTrans',
         rot_range=[-0.3925 * 2, 0.3925 * 2],
@@ -92,6 +94,7 @@ test_pipeline = [
         type='LoadPointsFromMultiSweeps',
         sweeps_num=10,
         use_dim=[0, 1, 2, 3, 4],
+        remove_close=True,
     ),
     dict(
         type='MultiScaleFlipAug3D',
@@ -266,3 +269,5 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 gpu_ids = range(0, 8)
+
+custom_hooks = [dict(type='EpochSetHook')]

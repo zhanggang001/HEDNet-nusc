@@ -4,19 +4,21 @@ class_names = [
     'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
 ]
 voxel_size = [0.075, 0.075, 0.2]
-out_size_factor = 8
-evaluation = dict(interval=1)
+
 dataset_type = 'NuScenesDataset'
 data_root = 'data/nuscenes/'
+
 input_modality = dict(
     use_lidar=True,
     use_camera=True,
     use_radar=False,
     use_map=False,
     use_external=False)
-img_scale = (800, 448)
+
 num_views = 6
+img_scale = (800, 448)
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+
 train_pipeline = [
     dict(
         type='LoadPointsFromFile',
@@ -28,6 +30,7 @@ train_pipeline = [
         type='LoadPointsFromMultiSweeps',
         sweeps_num=10,
         use_dim=[0, 1, 2, 3, 4],
+        remove_close=True,
     ),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(type='LoadMultiViewImageFromFiles'),
@@ -51,6 +54,7 @@ train_pipeline = [
     dict(type='DefaultFormatBundle3D', class_names=class_names),
     dict(type='Collect3D', keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d'])
 ]
+
 test_pipeline = [
     dict(
         type='LoadPointsFromFile',
@@ -62,6 +66,7 @@ test_pipeline = [
         type='LoadPointsFromMultiSweeps',
         sweeps_num=10,
         use_dim=[0, 1, 2, 3, 4],
+        remove_close=True,
     ),
     dict(type='LoadMultiViewImageFromFiles'),
     dict(
@@ -86,6 +91,7 @@ test_pipeline = [
             dict(type='Collect3D', keys=['points', 'img'])
         ])
 ]
+
 data = dict(
     samples_per_gpu=2,
     workers_per_gpu=6,
@@ -124,15 +130,13 @@ data = dict(
         modality=input_modality,
         test_mode=True,
         box_type_3d='LiDAR'))
+
+out_size_factor = 8
+out_size_factor_img = 4
+
 model = dict(
-    type='TransFusionDetector',
+    type='SimpleTransFusionDetector',
     freeze_img=True,
-    # img_backbone=dict(
-    #     type='DLASeg',
-    #     num_layers=34,
-    #     heads={},
-    #     head_convs=-1,
-    #     ),
     img_backbone=dict(
         type='ResNet',
         depth=50,
@@ -182,24 +186,21 @@ model = dict(
         upsample_cfg=dict(type='deconv', bias=False),
         use_conv_for_no_stride=True),
     pts_bbox_head=dict(
-        type='TransFusionHead',
+        type='SimpleTransFusionHead',
         fuse_img=True,
+        fusion_init=True,
         num_views=num_views,
         in_channels_img=256,
-        out_size_factor_img=4,
+        out_size_factor_img=out_size_factor_img,
         num_proposals=200,
-        auxiliary=True,
-        in_channels=256 * 2,
+        nms_kernel_size=3,
+        in_channels=512,
         hidden_channel=128,
         num_classes=len(class_names),
-        num_decoder_layers=1,
+        bn_momentum=0.1,
         num_heads=8,
-        learnable_query_pos=False,
-        initialize_by_heatmap=True,
-        nms_kernel_size=3,
         ffn_channel=256,
         dropout=0.1,
-        bn_momentum=0.1,
         activation='relu',
         common_heads=dict(center=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2)),
         bbox_coder=dict(
@@ -212,7 +213,6 @@ model = dict(
             code_size=10,
         ),
         loss_cls=dict(type='FocalLoss', use_sigmoid=True, gamma=2, alpha=0.25, reduction='mean', loss_weight=1.0),
-        # loss_iou=dict(type='CrossEntropyLoss', use_sigmoid=True, reduction='mean', loss_weight=0.0),
         loss_bbox=dict(type='L1Loss', reduction='mean', loss_weight=0.25),
         loss_heatmap=dict(type='GaussianFocalLoss', reduction='mean', loss_weight=1.0),
     ),
@@ -229,7 +229,7 @@ model = dict(
             pos_weight=-1,
             gaussian_overlap=0.1,
             min_radius=2,
-            grid_size=[1440, 1440, 40],  # [x_len, y_len, 1]
+            grid_size=[1440, 1440, 40],
             voxel_size=voxel_size,
             out_size_factor=out_size_factor,
             code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2],
@@ -243,7 +243,8 @@ model = dict(
             voxel_size=voxel_size[:2],
             nms_type=None,
         )))
-optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)  # for 8gpu * 2sample_per_gpu
+
+optimizer = dict(type='AdamW', lr=0.0001, weight_decay=0.01)
 optimizer_config = dict(grad_clip=dict(max_norm=0.1, norm_type=2))
 lr_config = dict(
     policy='cyclic',
@@ -255,18 +256,22 @@ momentum_config = dict(
     target_ratio=(0.8947368421052632, 1),
     cyclic_times=1,
     step_ratio_up=0.4)
+
 total_epochs = 6
 checkpoint_config = dict(interval=1)
+evaluation = dict(interval=1)
 log_config = dict(
     interval=50,
     hooks=[dict(type='TextLoggerHook'),
            dict(type='TensorboardLoggerHook')])
+
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = None
-load_from = 'checkpoints/fusion_voxel0075_R50.pth'
+load_from = None
 resume_from = None
 workflow = [('train', 1)]
 gpu_ids = range(0, 8)
+
 freeze_lidar_components = True
 find_unused_parameters = True

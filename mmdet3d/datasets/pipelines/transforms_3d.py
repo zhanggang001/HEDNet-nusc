@@ -30,12 +30,14 @@ class RandomFlip3D(RandomFlip):
     """
 
     def __init__(self,
-                 sync_2d=True,
+                 flip_2d=False,
+                 sync_2d=False,
                  flip_ratio_bev_horizontal=0.0,
                  flip_ratio_bev_vertical=0.0,
                  **kwargs):
         super(RandomFlip3D, self).__init__(
             flip_ratio=flip_ratio_bev_horizontal, **kwargs)
+        self.flip_2d = flip_2d
         self.sync_2d = sync_2d
         self.flip_ratio_bev_vertical = flip_ratio_bev_vertical
         if flip_ratio_bev_horizontal is not None:
@@ -80,8 +82,9 @@ class RandomFlip3D(RandomFlip):
                 'pcd_horizontal_flip' and 'pcd_vertical_flip' keys are added \
                 into result dict.
         """
-        # filp 2D image and its annotations
-        super(RandomFlip3D, self).__call__(input_dict)
+        if self.flip_2d:
+            # filp 2D image and its annotations
+            super(RandomFlip3D, self).__call__(input_dict)
 
         if self.sync_2d:
             input_dict['pcd_horizontal_flip'] = input_dict['flip']
@@ -127,12 +130,14 @@ class ObjectSample(object):
             Defaults to False.
     """
 
-    def __init__(self, db_sampler, sample_2d=False):
+    def __init__(self, db_sampler, max_abled_epoch=15, sample_2d=False):
         self.sampler_cfg = db_sampler
         self.sample_2d = sample_2d
         if 'type' not in db_sampler.keys():
             db_sampler['type'] = 'DataBaseSampler'
         self.db_sampler = build_from_cfg(db_sampler, OBJECTSAMPLERS)
+        self.max_abled_epoch = max_abled_epoch
+        self.current_epoch = 0
 
     @staticmethod
     def remove_points_in_boxes(points, boxes):
@@ -165,18 +170,20 @@ class ObjectSample(object):
 
         # change to float for blending operation
         points = input_dict['points']
-        if self.sample_2d:
-            img = input_dict['img']
-            gt_bboxes_2d = input_dict['gt_bboxes']
-            # Assume for now 3D & 2D bboxes are the same
-            sampled_dict = self.db_sampler.sample_all(
-                gt_bboxes_3d.tensor.numpy(),
-                gt_labels_3d,
-                gt_bboxes_2d=gt_bboxes_2d,
-                img=img)
-        else:
-            sampled_dict = self.db_sampler.sample_all(
-                gt_bboxes_3d.tensor.numpy(), gt_labels_3d, img=None)
+        sampled_dict = None
+        if self.current_epoch < self.max_abled_epoch:
+            if self.sample_2d:
+                img = input_dict['img']
+                gt_bboxes_2d = input_dict['gt_bboxes']
+                # Assume for now 3D & 2D bboxes are the same
+                sampled_dict = self.db_sampler.sample_all(
+                    gt_bboxes_3d.tensor.numpy(),
+                    gt_labels_3d,
+                    gt_bboxes_2d=gt_bboxes_2d,
+                    img=img)
+            else:
+                sampled_dict = self.db_sampler.sample_all(
+                    gt_bboxes_3d.tensor.numpy(), gt_labels_3d, img=None)
 
         if sampled_dict is not None:
             sampled_gt_bboxes_3d = sampled_dict['gt_bboxes_3d']

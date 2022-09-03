@@ -19,17 +19,13 @@ from .mvx_two_stage import MVXTwoStageDetector
 class TransFusionDetector(MVXTwoStageDetector):
     """Base class of Multi-modality VoxelNet."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, freeze_img=True, **kwargs):
         super(TransFusionDetector, self).__init__(**kwargs)
 
-        self.freeze_img = kwargs.get('freeze_img', True)
+        self.freeze_img = freeze_img
         self.init_weights(pretrained=kwargs.get('pretrained', None))
 
-    def init_weights(self, pretrained=None):
-        """Initialize model weights."""
-        super(TransFusionDetector, self).init_weights(pretrained)
-
-        if self.freeze_img:
+        if freeze_img:
             if self.with_img_backbone:
                 for param in self.img_backbone.parameters():
                     param.requires_grad = False
